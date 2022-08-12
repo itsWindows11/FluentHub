@@ -1,25 +1,242 @@
-﻿namespace FluentHub.Octokit.Queries.Users
+﻿using GraphQL;
+using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
+using System.Dynamic;
+using System.Globalization;
+
+namespace FluentHub.Octokit.Queries.Users
 {
     public class NotificationQueries
     {
-        public async Task<List<Notification>> GetAllAsync(OctokitOriginal.NotificationsRequest request = null, OctokitOriginal.ApiOptions options = null)
+        public async Task<List<Notification>> GetAllAsync(OctokitV3.NotificationsRequest request = null, OctokitV3.ApiOptions options = null)
         {
             var response = await App.Client.Activity.Notifications.GetAllForCurrent(request, options);
 
             Wrappers.NotificationWrapper wrapper = new();
-            var notifications = await wrapper.WrapAsync(response);
+            var notifications = wrapper.WrapAsync(response);
+
+            var fragments = GetGetheredRepositoryFragment(notifications);
+
+            var request2 = new GraphQLRequest
+            {
+                Query = @$"query {{ {fragments} }}",
+            };
+
+            var response2 = await App.GraphQLHttpClient.SendQueryAsync<object>(request2);
+            List<Repository> zippedData = new();
+
+            var json = response2.Data as JToken;
+
+            var errors = json["errors"];
+            if (errors is not null)
+            {
+                return notifications;
+            }
+
+            for (int idx = 0; idx < options.PageSize; idx++)
+            {
+                var repo = json[$"repo{idx}"];
+                if (repo is null)
+                {
+                    // Add empty data
+                    zippedData.Add(new());
+                    continue;
+                }
+
+                var issue = repo["Issue"];
+                var pr = repo["PullRequest"];
+
+                if (issue is not null)
+                {
+                    Enum.TryParse(
+                        issue["state"].ToString(),
+                        true,
+                        out IssueState state);
+                    Enum.TryParse(
+                        issue["stateReason"].ToString(),
+                        true,
+                        out IssueStateReason stateReason);
+                    var id = new ID(
+                        issue["id"].ToString());
+                    int.TryParse(
+                        issue["number"].ToString(),
+                        out int number);
+
+                    zippedData.Add(new()
+                    {
+                        Issue = new()
+                        {
+                            Id = id,
+                            Number = number,
+                            State = state,
+                            StateReason = stateReason,
+                        },
+                    });
+                }
+                else if (pr is not null)
+                {
+                    Enum.TryParse(
+                        pr["state"].ToString(),
+                        true,
+                        out PullRequestState state);
+                    var id = new ID(
+                        pr["id"].ToString());
+                    int.TryParse(
+                        pr["number"].ToString(),
+                        out int number);
+                    bool.TryParse(
+                        pr["isDraft"].ToString(),
+                        out bool isDraft);
+
+                    zippedData.Add(new()
+                    {
+                        PullRequest = new()
+                        {
+                            Id = id,
+                            Number = number,
+                            IsDraft = isDraft,
+                            State = state,
+                        },
+                    });
+                }
+            }
+
+            var mappedNotifications = Map(notifications, zippedData);
+
+            return mappedNotifications;
+        }
+
+        private string GetGetheredRepositoryFragment(IReadOnlyList<Notification> notifications)
+        {
+            string getheredFragments = "";
+
+            for (int index = 0; index < notifications.Count; index++)
+            {
+                switch (notifications.ElementAt(index).Subject.Type)
+                {
+                    case NotificationSubjectType.Discussion:
+                    case NotificationSubjectType.Commit:
+                    case NotificationSubjectType.Release:
+                        break;
+                    case NotificationSubjectType.Issue:
+                        {
+                            var issueFragment =
+                                @$"
+repo{index}: repository(name: ""{notifications.ElementAt(index).Repository.Name}"", owner: ""{notifications.ElementAt(index).Repository.Owner.Login}"") {{
+  Issue: issue(number: {notifications.ElementAt(index).Subject.Number}) {{
+    id
+    number
+    state
+    stateReason
+  }}
+}}";
+                            getheredFragments += (issueFragment + "\n");
+                            break;
+                        }
+                    case NotificationSubjectType.PullRequest:
+                        {
+                            var prFragment =
+                                @$"
+repo{index}: repository(name: ""{notifications.ElementAt(index).Repository.Name}"", owner: ""{notifications.ElementAt(index).Repository.Owner.Login}"") {{
+  PullRequest: pullRequest(number: {notifications.ElementAt(index).Subject.Number}) {{
+    id
+    number
+    isDraft
+    state
+  }}
+}}";
+                            getheredFragments += (prFragment + "\n");
+                            break;
+                        }
+                }
+
+            }
+
+            return getheredFragments;
+        }
+
+        private List<Notification> Map(List<Notification> notifications, IReadOnlyList<Repository> details)
+        {
+            int index = 0;
+
+            foreach (var item in notifications)
+            {
+                switch (item.Subject.Type)
+                {
+                    case NotificationSubjectType.Discussion:
+                    case NotificationSubjectType.Commit:
+                    case NotificationSubjectType.Release:
+                        break;
+                    case NotificationSubjectType.Issue:
+                        {
+                            item.Subject.Number = details.ElementAt(index).Issue.Number;
+
+                            switch (details.ElementAt(index).Issue.State)
+                            {
+                                case IssueState.Open:
+                                    {
+                                        item.Subject.Type = NotificationSubjectType.IssueOpen;
+                                        break;
+                                    }
+                                case IssueState.Closed:
+                                    {
+                                        switch (details.ElementAt(index).Issue.StateReason)
+                                        {
+                                            case IssueStateReason.Completed:
+                                                item.Subject.Type = NotificationSubjectType.IssueClosedAsCompleted;
+                                                break;
+                                            case IssueStateReason.NotPlanned:
+                                                item.Subject.Type = NotificationSubjectType.IssueClosedAsNotPlanned;
+                                                break;
+                                        }
+                                        break;
+                                    }
+                            }
+                            break;
+                        }
+                    case NotificationSubjectType.PullRequest:
+                        {
+                            item.Subject.Number = details.ElementAt(index).PullRequest.Number;
+
+                            switch (details.ElementAt(index).PullRequest.State)
+                            {
+                                case PullRequestState.Open:
+                                    {
+                                        item.Subject.Type = details.ElementAt(index).PullRequest.IsDraft ?
+                                            NotificationSubjectType.PullRequestDraft :
+                                            NotificationSubjectType.PullRequestOpen;
+                                        break;
+                                    }
+                                case PullRequestState.Closed:
+                                    {
+                                        item.Subject.Type = NotificationSubjectType.PullRequestClosed;
+                                        break;
+                                    }
+                                case PullRequestState.Merged:
+                                    {
+                                        item.Subject.Type = NotificationSubjectType.PullRequestMerged;
+                                        break;
+                                    }
+                            }
+                            break;
+                        }
+                }
+
+                item.Subject.TypeHumanized = item.Subject.Type.ToString();
+                index++;
+            }
 
             return notifications;
         }
 
         public async Task<int> GetUnreadCount()
         {
-            OctokitOriginal.NotificationsRequest request = new()
+            OctokitV3.NotificationsRequest request = new()
             {
                 All = true,
             };
 
-            OctokitOriginal.ApiOptions options = new()
+            OctokitV3.ApiOptions options = new()
             {
                 PageCount = 1,
                 PageSize = 50,

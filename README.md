@@ -8,7 +8,7 @@
   FluentHub
 </h1>
 <p align="center">
-  A stylish yet wonderfully powerful GitHub client
+  A stylish yet powerful GitHub client.
 </p>
 
 <p align="center">
@@ -35,15 +35,21 @@
 
 ### Via Microsoft Store
 
-~This is our preferred method.~ This allows you to always be on the latest version when we release new builds with automatic updates.
+Release mode is still not stable.
+
+<!--
+This is our preferred method. This allows you to always be on the latest version when we release new builds with automatic updates.
 
 <a title="Microsoft Store" target="_blank" href="https://apps.microsoft.com/store/detail/fluenthub/9nkb9hx8rjz3">
   <img width="128" align="center" src="https://getbadgecdn.azureedge.net/images/English_L.png" />
 </a>
+-->
 
-### Via GitHub ⭐Recommended⭐
+### Via GitHub
 
-This is our preferred method.
+Release mode is still not stable.
+
+<!--
 Released builds can be manually downloaded from this [repository's Releases page](https://github.com/FluentHub/FluentHub/releases).
 
 Download the `FluentHub_<versionNumber>.msixbundle` file from the `Assets` section. In order too install the app, you can simply double-click on the .msixbundle file, and the app installer should automatically run. If that fails for any reason, you can try the following command at a PowerShell prompt:
@@ -55,17 +61,20 @@ Download the `FluentHub_<versionNumber>.msixbundle` file from the `Assets` secti
 
 Add-AppxPackage FluentHub_<versionNumber>.msixbundle
 ```
+-->
 
-### Building from source
+### Building from source ⭐Recommended⭐
 
+This is our preferred method.
 See [the section](#building-the-code)
 
 ## Screenshots
 
 *May not always be up-to-date due to massive changes to the user interface*
 
-![image](https://user-images.githubusercontent.com/62196528/180275377-c35e5348-2e8c-44e5-ba57-ab4199547589.png)
-![image](https://user-images.githubusercontent.com/62196528/180275385-4534c2cd-e309-47e7-bc73-d25298957445.png)
+![image](https://user-images.githubusercontent.com/62196528/183133469-88c60c73-9058-4a23-a781-642cbd3cd318.png)
+![image](https://user-images.githubusercontent.com/62196528/183133521-42891ffa-7ada-485d-ac6d-a802e1b883b9.png)
+
 
 ## Feedback
 

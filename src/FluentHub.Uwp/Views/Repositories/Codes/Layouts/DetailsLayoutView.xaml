@@ -107,7 +107,7 @@
                                                 x:Name="ItemIcon"
                                                 HorizontalAlignment="Left"
                                                 VerticalAlignment="Center"
-                                                FontFamily="{StaticResource Octions}"
+                                                FontFamily="{StaticResource Octicons}"
                                                 FontSize="16"
                                                 Glyph="{x:Bind IconGlyph, Mode=OneWay}" />
 
@@ -132,7 +132,7 @@
                                                 HorizontalAlignment="Right"
                                                 VerticalAlignment="Center"
                                                 Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
-                                                Text="{x:Bind UpdatedAt, Mode=OneWay}" />
+                                                Text="{x:Bind UpdatedAtHumanized, Mode=OneWay}" />
 
                                         </Grid>
                                     </DataTemplate>
